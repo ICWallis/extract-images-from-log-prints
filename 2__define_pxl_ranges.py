@@ -1,5 +1,3 @@
-
-
 import fitz  # PyMuPDF
 from PIL import Image
 import io
@@ -8,14 +6,15 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 
-def interactive_crop_selector(pdf_path, page_num):
+def interactive_crop_selector(pdf_path, page_num, zoom=2.0):
     """
     Interactive tool to select crop region by clicking on the image.
     Click twice: first for top-left corner, then for bottom-right corner.
     """
     doc = fitz.open(pdf_path)
     page = doc[page_num]
-    pix = page.get_pixmap(matrix=fitz.Matrix(2, 2))
+    mat = fitz.Matrix(zoom, zoom)
+    pix = page.get_pixmap(matrix=mat)
     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
     doc.close()
     
@@ -54,12 +53,17 @@ def interactive_crop_selector(pdf_path, page_num):
                                           linewidth=2, edgecolor='r', facecolor='none')
             ax.add_patch(rect_patch)
             
+            # Convert back to PDF coordinates (divide by zoom)
+            pdf_x1, pdf_y1 = x1 / zoom, y1 / zoom
+            pdf_x2, pdf_y2 = x2 / zoom, y2 / zoom
+            
             print(f"Bottom-right corner: ({x2}, {y2})")
-            print(f"\nCrop coordinates:")
-            print(f"X_START = {min(x1, x2)}")
-            print(f"X_END = {max(x1, x2)}")
-            print(f"Y_START = {min(y1, y2)}")
-            print(f"Y_END = {max(y1, y2)}")
+            print(f"\nCrop coordinates (PDF space):")
+            print(f"X_START = {min(pdf_x1, pdf_x2)}")
+            print(f"X_END = {max(pdf_x1, pdf_x2)}")
+            print(f"Y_START = {min(pdf_y1, pdf_y2)}")
+            print(f"Y_END = {max(pdf_y1, pdf_y2)}")
+            print(f"ZOOM = {zoom}")
             
             ax.set_title(f"Page {page_num} - Region selected (close window to continue)")
         
@@ -71,23 +75,25 @@ def interactive_crop_selector(pdf_path, page_num):
     if len(coords) == 2:
         x1, y1 = coords[0]
         x2, y2 = coords[1]
+        # Return coordinates in PDF space (divided by zoom)
         return {
-            'x_start': min(x1, x2),
-            'x_end': max(x1, x2),
-            'y_start': min(y1, y2),
-            'y_end': max(y1, y2)
+            'x_start': min(x1, x2) / zoom,
+            'x_end': max(x1, x2) / zoom,
+            'y_start': min(y1, y2) / zoom,
+            'y_end': max(y1, y2) / zoom,
+            'zoom': zoom
         }
     return None
 
 
-def preview_crop(pdf_path, page_num, x_start, x_end, y_start, y_end):
+def preview_crop(pdf_path, page_num, x_start, x_end, y_start, y_end, zoom=2.0):
     """Preview the cropped region"""
     doc = fitz.open(pdf_path)
     page = doc[page_num]
     
-    # Crop and render
+    # Crop and render with the same zoom factor
     rect = fitz.Rect(x_start, y_start, x_end, y_end)
-    mat = fitz.Matrix(2.0, 2.0)
+    mat = fitz.Matrix(zoom, zoom)
     pix = page.get_pixmap(matrix=mat, clip=rect)
     img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
     doc.close()
@@ -95,7 +101,7 @@ def preview_crop(pdf_path, page_num, x_start, x_end, y_start, y_end):
     # Display cropped result
     plt.figure(figsize=(10, 12))
     plt.imshow(img)
-    plt.title(f"Cropped Preview - Page {page_num}\nRegion: ({x_start}, {y_start}) to ({x_end}, {y_end})")
+    plt.title(f"Cropped Preview - Page {page_num}\nRegion: ({x_start:.1f}, {y_start:.1f}) to ({x_end:.1f}, {y_end:.1f})")
     plt.axis('off')
     plt.tight_layout()
     plt.show()
@@ -115,6 +121,11 @@ crop_coords = interactive_crop_selector(pdf_file, page_number)
 if crop_coords:
     preview_crop(pdf_file, page_number, 
                  crop_coords['x_start'], crop_coords['x_end'],
-                 crop_coords['y_start'], crop_coords['y_end'])
+                 crop_coords['y_start'], crop_coords['y_end'],
+                 crop_coords['zoom'])
+    
+    # Print the dictionary for easy copy-paste to next script
+    print("\n--- Copy this for refinement script ---")
+    print(f"initial_coords = {crop_coords}")
 
 

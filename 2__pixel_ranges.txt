@@ -1,0 +1,13 @@
+Page 0
+
+
+Page X
+
+
+Standard page
+
+Crop coordinates (PDF space):
+X_START = 124.5
+X_END = 372.0
+Y_START = 0.5
+Y_END = 1221.0
